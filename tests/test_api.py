@@ -51,6 +51,34 @@ def test_uploads_requirement(tmp_path: Path) -> None:
     assert (upload_dir / "requirements.txt").exists()
 
 
+def test_rejects_requirements_upload_with_parent_traversal(tmp_path: Path) -> None:
+    upload_dir = tmp_path / "uploads"
+    app = create_app(str(tmp_path / "workshop.db"), str(upload_dir))
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/requirements",
+            headers=headers(),
+            files={"file": ("../escape.txt", b"malicious", "text/plain")},
+        )
+    assert response.status_code == 400
+    assert not (tmp_path / "escape.txt").exists()
+    assert not (upload_dir / "escape.txt").exists()
+
+
+def test_rejects_requirements_upload_with_windows_parent_traversal(tmp_path: Path) -> None:
+    upload_dir = tmp_path / "uploads"
+    app = create_app(str(tmp_path / "workshop.db"), str(upload_dir))
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/requirements",
+            headers=headers(),
+            files={"file": ("..\\escape.txt", b"malicious", "text/plain")},
+        )
+    assert response.status_code == 400
+    assert not (tmp_path / "escape.txt").exists()
+    assert not (upload_dir / "escape.txt").exists()
+
+
 def test_rejects_invalid_token(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "workshop.db"), str(tmp_path / "uploads"))
     with TestClient(app) as client:
