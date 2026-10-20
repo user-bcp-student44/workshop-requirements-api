@@ -106,7 +106,23 @@ def create_app(db_path: str | None = None, upload_dir: str | None = None) -> Fas
 
     @app.post("/api/requirements", status_code=201)
     async def upload_requirement(file: UploadFile = File(...), identity: dict[str, str] = Depends(legacy_identity)) -> dict[str, Any]:
-        target = Path(selected_uploads) / str(file.filename)
+        upload_root = Path(selected_uploads).resolve()
+        requested_name = str(file.filename or "")
+        requested_path = Path(requested_name)
+
+        if requested_name.strip() == "":
+            raise HTTPException(status_code=400, detail="Invalid file name")
+        if requested_path.is_absolute():
+            raise HTTPException(status_code=400, detail="Invalid file name")
+        if ".." in requested_path.parts:
+            raise HTTPException(status_code=400, detail="Invalid file name")
+
+        target = (upload_root / requested_path).resolve()
+        try:
+            target.relative_to(upload_root)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="Invalid file name") from error
+
         content = await file.read()
         target.write_bytes(content)
         return {"owner": identity["username"], "fileName": file.filename, "storedAt": str(target), "size": len(content)}
